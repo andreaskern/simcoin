@@ -103,6 +103,6 @@ def _create_ticks(nodes, block_events, txs_per_tick, amount_of_ticks):
                 tick.append('block ' + node)
                 block_events[node].pop(0)
                 pop_count += 1
-            if pop_count > 1:
-                exit('A tick contains multiple block events of one node. Change your input arguments.')
+            if pop_count > 1: # TODO `make test` shows the warning
+                logging.warning('A tick contains multiple block events of one node. Change your input arguments.')
     return ticks
