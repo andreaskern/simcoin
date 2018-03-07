@@ -1,6 +1,6 @@
 before_script:
   - python3 --version
-  - apt install python3-pip
+  - sudo apt install python3-pip
   - pip3 install -r code/requirements.txt
 
 unittest:
