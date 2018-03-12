@@ -391,6 +391,10 @@ kable(unclass(summary(tips$branchlen)), digits = 2, caption = 'Overall branch le
 bwplot(tips$branchlen ~ tips$tag, ylab = 'Branch length')
 ```
 
+```{r fork_hist, fig.cap='Number of tips at height'}
+hist(tips$height)
+```
+
 ## Exceptions
 ```{r event_exces_setup}
 if (nrow(tx_exces) > 0) {

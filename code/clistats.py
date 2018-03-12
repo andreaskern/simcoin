@@ -68,19 +68,20 @@ def _persist_consensus_chain(chain):
 
 
 class Tip:
-    __slots__ = ['_node', '_status', '_branchlen']
+    __slots__ = ['_node', '_status', '_branchlen', '_height']
 
-    csv_header = ['node', 'status', 'branchlen']
+    csv_header = ['node', 'status', 'branchlen', 'height']
     file_name = 'tips.csv'
 
-    def __init__(self, node, status, branchlen):
+    def __init__(self, node, status, branchlen, height):
         self._node = node
         self._status = status
         self._branchlen = branchlen
+        self._height = height
 
     @classmethod
     def from_dict(cls, node, chain_tip):
-        return cls(node, chain_tip['status'], chain_tip['branchlen'])
+        return cls(node, chain_tip['status'], chain_tip['branchlen'], chain_tip['height'])
 
     def vars_to_array(self):
-        return [self._node, self._status, self._branchlen]
+        return [self._node, self._status, self._branchlen, self._height]
