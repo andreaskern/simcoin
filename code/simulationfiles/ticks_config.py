@@ -91,18 +91,29 @@ def _create_block_series(share, blocks_per_tick, expected_blocks):
 
 def _create_ticks(nodes, block_events, txs_per_tick, amount_of_ticks):
     index_tx = 0
+    forks = 0
+    blocks = 0
     ticks = [[] for _ in range(amount_of_ticks)]
     for index, tick in enumerate(ticks):
         for i in range(txs_per_tick):
             tick.append('tx ' + random.choice(nodes).name)
             index_tx += 1
 
+        distinct_nodes = set()
         for node in block_events.keys():
             pop_count = 0
             while block_events[node][0] < index + 1:
                 tick.append('block ' + node)
+                distinct_nodes = distinct_nodes | set([node])
+                blocks += 1
                 block_events[node].pop(0)
                 pop_count += 1
             if pop_count > 1: # TODO `make test` shows the warning
                 logging.warning('A tick contains multiple block events of one node. Change your input arguments.')
+                # possible wrong # forks += (pop_count -1 )
+        if (len(distinct_nodes) > 1):
+            forks += len(distinct_nodes) - 1
+    logging.warning("Probably {} forks expected".format(forks))
+    logging.warning("Probably {} blocks in longest chain expected".format(blocks - forks))
+
     return ticks
