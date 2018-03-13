@@ -82,11 +82,13 @@ class BitcoinNode(Node):
         return self._path + config.bitcoin_log_file_name
 
     def wait_until_rpc_ready(self):
+        logging.debug("# Waiting for docker instances to become ready")
         while True:
             try:
                 bash.check_output(
                     "nc -z -w1 {} {}"
                     .format(self._ip, config.rpc_port)
+                  , purpose="Wait for port beeing open"
                 )
                 break
             except Exception:
