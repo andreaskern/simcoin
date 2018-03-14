@@ -21,11 +21,15 @@ class Context:
         self._nodes = OrderedDict([])
 
         for node_config in node_configs:
-            self.nodes.update({node_config.name: PublicBitcoinNode(
-                node_config.name, node_config.group,
-                self.zone.get_ip(node_config.latency),
-                node_config.latency, node_config.docker_image,
-                self.run_dir + node_config.name)})
+            self.nodes.update({
+                node_config.name: PublicBitcoinNode(
+                    node_config.name, 
+                    node_config.group,
+                    self.zone.get_ip(node_config.latency),
+                    node_config.latency, 
+                    node_config.docker_image,
+                    self.run_dir + node_config.name)
+            })
 
         connections = network_config.read_connections()
         for node in self.nodes.values():
