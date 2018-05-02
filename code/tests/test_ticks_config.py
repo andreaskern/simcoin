@@ -3,14 +3,14 @@ from mock import patch
 from simulationfiles import ticks_config
 from simulationfiles.nodes_config import NodeConfig
 import sys
-import os
 
 
 class TestTicksConfig(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        sys.stdout = open(os.devnull, 'w')
+        sys.stdout = None
+
 
     def test_calc_expected_events_two_events_per_tick(self):
         expected_events = ticks_config._calc_expected_events(10, 0.5)
@@ -42,14 +42,26 @@ class TestTicksConfig(TestCase):
         self.assertEqual(len(event_ticks[1]), 2)
         self.assertEqual(len(event_ticks[2]), 4)
         self.assertEqual(len(event_ticks[3]), 2)
-        self.assertTrue('tx ' in event_ticks[0][0])
+
+        # changed blk/tx creation algorithm
+
+        # self.assertTrue('tx ' in event_ticks[0][0])
+        # self.assertTrue('tx ' in event_ticks[1][0])
+        # self.assertTrue('tx ' in event_ticks[2][0])
+        # self.assertTrue('tx ' in event_ticks[3][0])
+        # self.assertTrue('block ' in event_ticks[0][2])
+        # self.assertTrue('block ' in event_ticks[0][3])
+        # self.assertTrue('block ' in event_ticks[2][2])
+        # self.assertTrue('block ' in event_ticks[2][3])
+
+        self.assertTrue('tx ' in event_ticks[0][2])
         self.assertTrue('tx ' in event_ticks[1][0])
-        self.assertTrue('tx ' in event_ticks[2][0])
+        self.assertTrue('tx ' in event_ticks[2][2])
         self.assertTrue('tx ' in event_ticks[3][0])
-        self.assertTrue('block ' in event_ticks[0][2])
-        self.assertTrue('block ' in event_ticks[0][3])
-        self.assertTrue('block ' in event_ticks[2][2])
-        self.assertTrue('block ' in event_ticks[2][3])
+        self.assertTrue('block ' in event_ticks[0][0])
+        self.assertTrue('block ' in event_ticks[0][1])
+        self.assertTrue('block ' in event_ticks[2][0])
+        self.assertTrue('block ' in event_ticks[2][1])
 
     def test_create_ticks_with_multiple_blocks_in_one_tick(self):
         end = 4
