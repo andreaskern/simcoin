@@ -2,6 +2,10 @@ import config
 
 
 def run_node(name, ip, docker_image, cmd, path):
+    # quick reference about other docker options
+    # ' --cpus=0.50'
+    #   this is docker 1.13 specific,
+    #   use ' --cpu-quota=100' for more recent docker versions
     return ('docker run'
             ' --cap-add=NET_ADMIN'  # for `tc`
             ' --detach=true'
@@ -20,7 +24,9 @@ def exec_cmd(node, cmd):
 
 def create_network():
     return ('docker network create'
-            ' --subnet={}  --driver bridge {}'.format(config.ip_range, config.network_name))
+            ' --subnet={} '
+            ' --driver bridge {}'
+            .format(config.ip_range, config.network_name))
 
 
 def rm_network():
@@ -29,8 +35,11 @@ def rm_network():
 
 def fix_data_dirs_permissions(path):
     return ('docker run '
-            ' --rm --volume $PWD/{}:/mnt ubuntu'
-            ' chmod a+rwx --recursive /mnt'.format(path))
+            ' --rm '
+            ' --volume $PWD/{}:/mnt '
+            ' ubuntu '
+            ' chmod a+rwx --recursive /mnt '
+            .format(path))
 
 
 def rm_container(name):
@@ -54,4 +63,6 @@ def inspect(image):
 
 
 def check_if_running(name):
-    return 'docker inspect -f {{{{.State.Running}}}} {0}{1}'.format(config.prefix, name)
+    return ('docker inspect '
+            ' -f {{{{.State.Running}}}} {0}{1} '
+            .format(config.prefix, name))
