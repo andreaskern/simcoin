@@ -9,23 +9,16 @@ from argparse import Namespace
 
 class TestUtils(TestCase):
 
-    @patch('builtins.exit')
     @patch('os.path.isfile')
-    def test_check_for_files_file_not_existing(self, m_isfile, m_exit):
+    def test_check_for_files_file_not_existing(self, m_isfile):
         m_isfile.return_value = False
+        self.assertRaises(Exception, utils.check_for_file, 'file.txt')
 
-        utils.check_for_file('file.txt')
-
-        self.assertTrue(m_exit.called)
-
-    @patch('builtins.exit')
     @patch('os.path.isfile')
-    def test_check_for_files_file_exists(self, m_isfile, m_exit):
+    def test_check_for_files_file_exists(self, m_isfile):
         m_isfile.return_value = True
-
         utils.check_for_file('file.txt')
-
-        self.assertFalse(m_exit.called)
+        # No Exception raised
 
     @patch('os.path.isfile', lambda path: True)
     def test_read(self):

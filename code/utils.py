@@ -36,10 +36,11 @@ def config_logger(verbose):
 
 def check_for_file(file):
     if not os.path.isfile(file):
-        command = re.split('\.|/', file)[-2]
-        print("File={} not found. Please generate this with the command `python3 simcoin.py {} [args].`"
-              .format(file, command))
-        exit(-1)
+        command = re.split('[./]', file)[-2]  # '\.|/'
+        raise Exception("File={} not found. "
+                        " Please generate this with the command "
+                        " `python3 simcoin.py {} [args].`"
+                        .format(file, command))
 
 
 def read_csv(file_name):
