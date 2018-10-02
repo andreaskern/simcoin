@@ -1,30 +1,15 @@
 import sched
 import time
+from time import sleep
 import logging
 import bash
 import re
+from threading import Thread
+from multiprocessing import Process
+import math
+import config
 
 PRIORITY = 1
-
-
-def run(stop_event, frequency, q_cpu_time, q_memory):
-    logging.info('Starting system monitor with frequency={}s'.format(str(frequency)))
-    scheduler = sched.scheduler(time.time, time.sleep)
-    next_execution = time.time()
-
-    while not stop_event.wait(0):
-        scheduler.enterabs(next_execution, PRIORITY, _collect, (q_cpu_time, q_memory,))
-        scheduler.run()
-        next_execution += frequency
-
-
-def _collect(q_cpu_time, q_memory):
-    cpu_time = bash.check_output('cat /proc/stat | head -1')
-    memory = bash.check_output('cat /proc/meminfo | head -3')
-    q_cpu_time.put(CpuTimeSnapshot.from_bash(cpu_time))
-    q_memory.put(MemorySnapshot.from_bash(memory))
-
-    logging.info('Collected cpu_time and memory usage')
 
 
 class CpuTimeSnapshot:
@@ -68,3 +53,98 @@ class MemorySnapshot:
 
     def vars_to_array(self):
         return [self._timestamp, self._total, self._available]
+
+
+class Sysmon(Process):
+
+    def __init__(self, tick_duration, amount_of_ticks, q_cpu_time, q_memory, writer):
+        Process.__init__(self, name = "Sysmon")
+
+        self.frequency = _calculate_frequency(tick_duration, amount_of_ticks)
+
+        self.daemon = True
+        self.q_cpu_time = q_cpu_time
+        self.q_memory = q_memory
+        self._writer = writer
+
+    def run(self):
+        logging.info('Starting system monitor with frequency={}s'.format(str(self.frequency)))
+        # scheduler = sched.scheduler(time.time, time.sleep)
+        # next_execution = time.time()
+
+
+
+        self.write_headers()
+
+        # TODO fix sysmon
+        # while True:
+        logging.info("loopdy-do")
+        self._collect(self.q_cpu_time, self.q_memory)
+        sleep(self.frequency)
+        # scheduler.enterabs(next_execution, PRIORITY, _collect, (q_cpu_time, q_memory,))
+        # scheduler.run()
+        # next_execution += frequency
+
+
+        logging.info('Stopped System monitor')
+
+    def _collect(self, q_cpu_time, q_memory):
+        cpu_time = bash.check_output('cat /proc/stat | head -1')
+        memory = bash.check_output('cat /proc/meminfo | head -3')
+        # q_cpu_time.put(CpuTimeSnapshot.from_bash(cpu_time))
+        # q_memory.put(MemorySnapshot.from_bash(memory))
+
+        self.appedn_csv(
+            CpuTimeSnapshot.from_bash(cpu_time), 
+            MemorySnapshot.from_bash(memory)
+            )
+
+        logging.info('Collected cpu_time and memory usage')
+
+    def write_headers(self):
+        self._writer.write_header_csv(
+            MemorySnapshot.file_name,
+            MemorySnapshot.csv_header
+            )
+
+        self._writer.write_header_csv(
+            CpuTimeSnapshot.file_name,
+            CpuTimeSnapshot.csv_header
+            )
+
+    def appedn_csv(self,cpu_time, memory):
+        self._writer.append_csv(
+            CpuTimeSnapshot.file_name,
+            [cpu_time]
+        )
+        self._writer.append_csv(
+            MemorySnapshot.file_name,
+            [memory]
+        )
+
+
+    def _persist_system_snapshots(self):
+        cpu_times = list(self.q_cpu_time.queue)
+        memory = list(self.q_memory.queue)
+
+        self._writer.write_csv(
+            CpuTimeSnapshot.file_name,
+            CpuTimeSnapshot.csv_header,
+            cpu_times,
+        )
+        self._writer.write_csv(
+            MemorySnapshot.file_name,
+            MemorySnapshot.csv_header,
+            memory,
+        )
+        logging.info('Persisted {} CPU time and {} memory snapshots'.format(len(cpu_times), len(memory)))
+
+
+
+def _calculate_frequency(tick_duration, amount_of_ticks):
+    frequency = math.ceil(tick_duration * amount_of_ticks / config.amount_of_system_snapshots)
+    logging.info('With tick_duration={}, amount_of_ticks={} and '
+                 'amount_of_system_snapshots={} '
+                 ' the system monitor needs to take every {}s a snapshot'
+                 .format(tick_duration, amount_of_ticks, config.amount_of_system_snapshots, frequency))
+    return frequency
