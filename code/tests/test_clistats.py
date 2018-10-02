@@ -98,10 +98,10 @@ class TestCliStats(TestCase):
     def test_node_stats(self):
         node_0 = MagicMock()
         node_0.name = 'name'
-        node_0.execute_rpc.return_value = [{'status': 'active', 'branchlen': 2, 'height':123}]
+        node_0.execute_rpc.return_value = [{'status': 'active', 'branchlen': 2, 'height':123, 'hash':12345}]
         self.context.nodes = {'0': node_0}
 
         self.cli_stats._persist_node_stats()
 
-        self.assertEqual(self.writer.write_csv.call_args[0][1], ['node', 'status', 'branchlen','height'])
+        self.assertEqual(self.writer.write_csv.call_args[0][1], ['node', 'status', 'branchlen','height','hash'])
         self.assertEqual(len(self.writer.write_csv.call_args[0][2]), 1)
