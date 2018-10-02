@@ -6,7 +6,7 @@ import pytz
 from multiprocessing import Pool
 from itertools import repeat
 from chunker import Chunker
-import write
+# from write import Writer
 
 
 class Parser:
@@ -22,7 +22,7 @@ class Parser:
         self._pool = Pool(config.pool_processors)
 
         for parser in host_parsers + node_parsers:
-            write.write_header_csv(parser.file_name, parser.csv_header)
+            self._writer.write_header_csv(parser.file_name, parser.csv_header)
         logging.info('Created all empty csv files')
 
         self._pool.starmap(_parse, zip(
