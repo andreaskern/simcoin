@@ -6,22 +6,15 @@ from simulationfiles import network_config
 import sys
 import argparse
 import simulation_cmd
+from postprocessing import _create_report
 import config
 import os
 import bitcoin
 import utils
 import multirun_cmd
-import run_cmd
 import logging
+from info import Info
 
-commands = {
-    'nodes':        nodes_config.create,
-    'network':      network_config.create,
-    'ticks':        ticks_config.create,
-    'simulate':     simulation_cmd.run,
-    'run':          run_cmd.run,
-    'multi-run':    multirun_cmd.run,
-}
 
 
 def _parse_args():
@@ -44,26 +37,38 @@ def _parse_args():
 
 
 def main():
+    def run (): 
+        nodes_config.create(unknown_arguments=True)
+        ticks_config.create(unknown_arguments=True)
+        network_config.create(unknown_arguments=True)
+        simulation_cmd.run(unknown_arguments=True)
+
+    commands = {
+        'nodes':        nodes_config.create,
+        'network':      network_config.create,
+        'ticks':        ticks_config.create,
+        'simulate':     simulation_cmd.run,
+        'report'  :     _create_report,
+        'run':          run,
+        'multi-run':    multirun_cmd.run,
+        # TODO create report
+    }
+
     cmd_parser = argparse.ArgumentParser(
         description='Simcoin a cryptocurrency simulator.',
-        usage='''<command> [<args>]
+        usage=f'''<command> [<args>]
 
         The commands are:
-        nodes       creates the {} for a simulation
-        network     creates the {} for a simulation
-        ticks       creates the {} for a simulation
-        simulate    executes a simulation based on the {}, {} and {}
+        nodes       creates the {config.nodes_csv_file_name} for a simulation
+        network     creates the {config.network_csv_file_name} for a simulation
+        ticks       creates the {config.ticks_csv_file_name} for a simulation
+        simulate    executes a simulation based on the {config.nodes_csv_file_name}, {config.network_csv_file_name} and {config.ticks_csv_file_name}
+        report      recreate the report of the last run
         run         runs all above commands
         multi-run   run the simulation multiple times
-        '''.format(
-            config.nodes_csv_file_name,
-            config.network_csv_file_name,
-            config.ticks_csv_file_name,
-            config.nodes_csv_file_name,
-            config.network_csv_file_name,
-            config.ticks_csv_file_name,
-        ))
-
+        '''
+    )
+    
     cmd_parser.add_argument('command', help='Subcommand to run')
 
     # parse_args defaults to [1:] for args, but you need to
@@ -74,7 +79,6 @@ def main():
         print('Unrecognized command')
         cmd_parser.print_help()
         exit(1)
-    # use dispatch pattern to invoke method with same name
 
     if not os.path.exists(config.data_dir):
         os.makedirs(config.data_dir)
@@ -82,11 +86,14 @@ def main():
     bitcoin.SelectParams('regtest')
 
     args = _parse_args()
-    utils.config_logger(args.verbose)
-    logging.info("Arguments called with: {}".format(sys.argv))
-    logging.info("Parsed arguments in simcoin.py: {}".format(args))
 
-    logging.info('Executing command={}'.format(command))
+    utils.config_logger(args.verbose)
+
+    logging.info(f"Arguments called with: {sys.argv}")
+    logging.info(f"Parsed arguments in simcoin.py: {args}")
+    logging.info(f'Executing command={command}')
+
+    # use dispatch pattern to invoke method with same name
     commands[command]()
 
 
