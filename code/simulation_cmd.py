@@ -3,14 +3,16 @@ import logging
 import time
 from postprocessing import PostProcessing
 from event import Event
-import config
 from context import Context
 from prepare import Prepare
 from write import Writer
+import config
+
 import utils
 import sys
 import argparse
 from simulationfiles import checkargs
+from info import Info
 
 
 def _create_parser():
@@ -50,23 +52,22 @@ def run(unknown_arguments=False):
     tag = context.args.tag
     if hasattr(context.args, 'tag_appendix'):
         tag += context.args.tag_appendix
-    writer = Writer(tag)
-    runner = Runner(context, writer)
 
-    prepare = Prepare(context)
-    runner._prepare = prepare
+    context.tag = tag
 
-    postprocessing = PostProcessing(context, writer)
-    runner._postprocessing = postprocessing
-
-    event = Event(context)
-    runner._event = event
+    runner = Runner( context )
 
     start = time.time()
 
     runner.run()
 
-    logging.info("The duration of the run was {} seconds".format(str(time.time() - start)))
+    end = time.time()
+
+    duration = end - start
+
+    Info().time_elapsed = str(duration)
+
+    logging.info("The duration of the run was {} seconds".format(str(duration)))
 
 
 def _check_skip_ticks(skip_ticks):
