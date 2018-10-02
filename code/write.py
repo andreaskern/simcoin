@@ -9,7 +9,7 @@ class Writer:
         self._tag = tag
 
     def write_csv(self, file_name, header, elements):
-        write_header_csv(file_name, header)
+        Writer.write_header_csv(file_name, header)
         self.append_csv(file_name, elements)
 
     def append_csv(self, file_name, elements):
@@ -24,12 +24,12 @@ class Writer:
                 row.append(self._tag)
                 w.writerow(row)
 
+    @staticmethod
+    def write_header_csv(file_name, header):
+        with open(config.postprocessing_dir + file_name, 'w') as file:
+            logging.debug('Waiting for lock to write to file={}'.format(file_name))
+            fcntl.flock(file, fcntl.LOCK_EX)
+            logging.debug('Received lock for writing to file={}'.format(file_name))
 
-def write_header_csv(file_name, header):
-    with open(config.postprocessing_dir + file_name, 'w') as file:
-        logging.debug('Waiting for lock to write to file={}'.format(file_name))
-        fcntl.flock(file, fcntl.LOCK_EX)
-        logging.debug('Received lock for writing to file={}'.format(file_name))
-
-        w = csv.writer(file)
-        w.writerow(header + ['tag'])
+            w = csv.writer(file)
+            w.writerow(header + ['tag'])
