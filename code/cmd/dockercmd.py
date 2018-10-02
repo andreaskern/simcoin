@@ -25,8 +25,17 @@ def exec_cmd(node, cmd):
 def create_network():
     return ('docker network create'
             ' --subnet={} '
+            ' --internal'
             ' --driver bridge {}'
             .format(config.ip_range, config.network_name))
+
+def create_network_macvlan(): # containers can't talk to each other
+    return (f' docker network create '
+            f' --subnet={config.ip_range} '
+            f' --driver macvlan '
+            f' -o parent=docker0 '
+            f' {config.network_name} '
+            )
 
 
 def rm_network():
