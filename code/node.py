@@ -1,9 +1,11 @@
 from cmd import dockercmd
 from cmd import bitcoincmd
 import config
-import bash
+from node_txchain import TxChain
+from util import bash
 import logging
 from cmd import tccmd
+from multiprocessing import Pool
 import utils
 from collections import OrderedDict
 from collections import namedtuple
@@ -16,10 +18,14 @@ from bitcoin.wallet import CBitcoinAddress
 from http.client import CannotSendRequest
 from bitcoin.rpc import Proxy
 from bitcoin.rpc import JSONRPCError
-from bitcoin.rpc import DEFAULT_HTTP_TIMEOUT
+import math
+from typing import List
 
 
 class Node:
+    """ A P2P network node
+
+    """
     __slots__ = ['_name', '_ip', '_docker_image', '_group']
 
     def __init__(self, name, group, ip, docker_image):
@@ -51,6 +57,24 @@ class BitcoinNode(Node):
         self._current_tx_chain_index = 0
         self._tx_chains = []
 
+    def exec_event_cmd(self, cmd: str, args: List[str] = []):
+        if cmd == 'tx':
+            self.generate_tx
+        elif cmd == 'block':
+            self.generate_blocks(amount=1)
+        else:
+            raise Exception("Unknown cmd {cmd} for node {node}",cmd,self)
+
+    def exec_event_cmd_string(self, cmd: str, args: List[str] = []) -> str:
+        if cmd == 'tx':
+            # TODO fix transactions
+            #return self.generate_tx_string()
+            return ""
+        elif cmd == 'block':
+            return self.generate_blocks_string(amount=1)
+        else:
+            raise Exception("Unknown cmd {cmd} for node {node}",cmd,self)
+
     def create_conf_file(self):
         # file is needed for RPC connection
         with open(config.btc_conf_file.format(self.name), 'w') as file:
@@ -75,7 +99,9 @@ class BitcoinNode(Node):
             logging.debug('Closed rpc connection to node={}'.format(self._name))
 
     def stop(self):
-        self.execute_rpc('stop')
+        # self.execute_rpc('stop')
+        # bash.check_output(self.execute_rpc_string(('stop', '')))
+        bash.check_output(f"docker exec simcoin-{self._name} bitcoin-cli -regtest -rpcuser=admin -rpcpassword=admin  stop")
         logging.info('Send stop to node={}'.format(self.name))
 
     def get_log_file(self):
@@ -90,6 +116,7 @@ class BitcoinNode(Node):
                     .format(self._ip, config.rpc_port)
                   , purpose="Wait for port beeing open"
                 )
+                logging.info(f"Success for {self.ip}")
                 break
             except Exception:
                 logging.debug("Waiting with netcat until port is open")
@@ -127,7 +154,10 @@ class BitcoinNode(Node):
     def transfer_coinbases_to_normal_tx(self):
         for tx_chain in self._tx_chains:
             tx_chain.amount /= 2
+            logging.info(f'transfer_coinbase_to_normal_tx tx_chain.amount = {tx_chain.amount}')
             tx_chain.amount -= int(config.transaction_fee / 2)
+            logging.info(f'transfer_coinbase_to_normal_tx tx_chain.amount = {tx_chain.amount}')
+            tx_chain.amount = math.floor(tx_chain.amount)  # TODO find better fix for 'Invalid amount' json_rpc error
             raw_transaction = self.execute_rpc(
                 'createrawtransaction',
                 [{
@@ -151,6 +181,9 @@ class BitcoinNode(Node):
         logging.debug('{} trying to generate block'.format(self._name))
         block_hash = self.execute_rpc('generate', amount)
         logging.info('{} generated block with hash={}'.format(self._name, block_hash))
+
+    def generate_blocks_string(self, amount=1) -> str:
+        return self.execute_rpc_string('generate ', amount)  # TODO fix amount
 
     def generate_tx(self):
         tx_chain = self.get_next_tx_chain()
@@ -257,40 +290,6 @@ class PublicBitcoinNode(BitcoinNode):
         super(PublicBitcoinNode, self).run(connect_to_ips)
 
 
-class TxChain:
-    __slots__ = ['_current_unspent_tx', '_address', '_seckey', '_amount']
-
-    def __init__(self, current_unspent_tx, address, seckey, amount):
-        self._current_unspent_tx = current_unspent_tx
-        self._address = address
-        self._seckey = seckey
-        self._amount = amount
-
-    @property
-    def current_unspent_tx(self):
-        return self._current_unspent_tx
-
-    @current_unspent_tx.setter
-    def current_unspent_tx(self, unspent_tx):
-        self._current_unspent_tx = unspent_tx
-
-    @property
-    def address(self):
-        return self._address
-
-    @property
-    def seckey(self):
-        return self._seckey
-
-    @property
-    def amount(self):
-        return self._amount
-
-    @amount.setter
-    def amount(self, amount):
-        self._amount = amount
-
-
 SpentToAddress = namedtuple('SpentToAddress', 'address seckey')
 
 
@@ -305,7 +304,8 @@ def start_node(node, connect_to_ips=None):
 def check_startup_node(node, height=0):
     node.connect_to_rpc()
     node.wait_until_rpc_ready()
-    wait_until_height_reached(node, height)
+    # TODO fix
+    # wait_until_height_reached(node, height)
 
 
 def wait_until_height_reached(node, height):
@@ -330,12 +330,16 @@ def add_latency(node, zones):
 
 
 def wait_until_node_stopped(node):
-    parts = 10
-    step = config.max_wait_time_bitcoin_runs_out / parts
-    for i in range(parts):
-        utils.sleep(step)
+    tries = 10
+    wait_for_seconds = 1
+
+    for i in range(tries):
         logging.info('Wait until node={} runs out'.format(node.name))
-        if node.is_running() is False:
+        if node.is_running():
+            logging.info(f'Waiting for {node.name}')
+            utils.sleep(1)
+        else:
+            logging.info(f'Node stopped {node.name}')
             return
     logging.warning('Node={} did not stopped running'.format(node.name))
 
@@ -345,9 +349,14 @@ def rm_peers_file(node):
 
 
 def graceful_rm(pool, nodes):
-    pool.map(stop_node, nodes)
-    pool.map(wait_until_node_stopped, nodes)
-    pool.map(rm_node, nodes)
+    try: # silence docker stop on already exited container error
+        with Pool(1) as pool1:
+            pool1.map(stop_node, nodes)
+        pool.map(wait_until_node_stopped, nodes)
+        pool.map(rm_node, nodes)
+    except Exception:
+        # do nothing
+        print("some exception ihappened during graceful_rm")
 
 
 def stop_node(node):
