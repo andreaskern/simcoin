@@ -14,27 +14,33 @@ import node as node_utils
 class Prepare:
     def __init__(self, context):
         self._context = context
-        self._pool = None
+        # self._pool = None
+    
+    def create_folder(self):
+        with ThreadPool(1) as pool:
+            self._prepare_simulation_dir(pool)
+
 
     def execute(self):
-        self._pool = ThreadPool(5)
+        # self._pool = ThreadPool(5)
 
-        logging.info('Begin of prepare step')
+        with ThreadPool(1) as pool:
+            logging.info('Begin of prepare step')
 
-        self._prepare_simulation_dir()
+            # self._prepare_simulation_dir(pool)
 
-        _remove_old_containers_if_exists()
-        _recreate_network()
+            _remove_old_containers_if_exists()
+            _recreate_network()
 
-        self._give_nodes_spendable_coins()
+            # TODO fix negative coinbase transfers
+            self._give_nodes_spendable_coins(pool)
+            self._start_nodes(pool)
 
-        self._start_nodes()
-
-        self._pool.close()
+            # self._pool.close()
 
         logging.info('End of prepare step')
 
-    def _prepare_simulation_dir(self):
+    def _prepare_simulation_dir(self, threadpool):
         if not os.path.exists(self._context.run_dir):
             os.makedirs(self._context.run_dir)
 
@@ -49,16 +55,16 @@ class Prepare:
             bash.check_output('cd {}; ln -s ../{} {}'.format(config.postprocessing_dir, file, file))
 
         os.makedirs(config.node_config)
-        self._pool.map(node_utils.create_conf_file, self._context.nodes.values())
+        threadpool.map(node_utils.create_conf_file, self._context.nodes.values())
 
         logging.info('Simulation directory created')
 
-    def _give_nodes_spendable_coins(self):
+    def _give_nodes_spendable_coins(self, threadpool):
         nodes = list(self._context.nodes.values())
         cbs = []
         for i, node in enumerate(nodes):
             cbs.append(
-                self._pool.apply_async(
+                threadpool.apply_async(
                     node_utils.start_node,
                     args=(node, (str(node.ip) for node in nodes[max(0, i - 5):i]))
                 )
@@ -66,7 +72,7 @@ class Prepare:
         for cb in cbs:
             cb.get()
 
-        self._pool.map(node_utils.check_startup_node, nodes)
+        threadpool.map(node_utils.check_startup_node, nodes)
 
         amount_of_tx_chains = _calc_number_of_tx_chains(
             self._context.args.txs_per_tick,
@@ -84,35 +90,37 @@ class Prepare:
         nodes[0].generate_blocks(config.blocks_needed_to_make_coinbase_spendable)
         current_height = config.blocks_needed_to_make_coinbase_spendable + amount_of_tx_chains * len(nodes)
 
-        self._pool.starmap(node_utils.wait_until_height_reached, zip(nodes, itertools.repeat(current_height)))
+        threadpool.starmap(node_utils.wait_until_height_reached, zip(nodes, itertools.repeat(current_height)))
 
-        self._pool.map(node_utils.transfer_coinbase_tx_to_normal_tx, nodes)
+        # TODO fix coinbase behaviour where [Example1](#AppendixA) does not occur
+        # self._pool.map(node_utils.transfer_coinbase_tx_to_normal_tx, nodes)
 
         for i, node in enumerate(nodes):
             node_utils.wait_until_height_reached(node, current_height + i)
             node.execute_rpc('generate', 1)
 
         current_height += len(nodes)
-        self._context.first_block_height = current_height
+        # TODO fix 
+        self._context.first_block_height = 0 # current_height
 
-        self._pool.starmap(node_utils.wait_until_height_reached, zip(
+        threadpool.starmap(node_utils.wait_until_height_reached, zip(
                 nodes,
                 itertools.repeat(current_height)
         ))
 
-        self._pool.map(node_utils.rm_peers_file, nodes)
-        node_utils.graceful_rm(self._pool, nodes)
+        threadpool.map(node_utils.rm_peers_file, nodes)
+        node_utils.graceful_rm(threadpool, nodes)
 
-    def _start_nodes(self):
+    def _start_nodes(self, threadpool):
         nodes = self._context.nodes.values()
 
-        self._pool.map(node_utils.start_node, nodes)
-        self._pool.starmap(node_utils.check_startup_node, zip(
+        threadpool.map(node_utils.start_node, nodes)
+        threadpool.starmap(node_utils.check_startup_node, zip(
             nodes,
             itertools.repeat(self._context.first_block_height)
         ))
 
-        self._pool.starmap(node_utils.add_latency, zip(
+        threadpool.starmap(node_utils.add_latency, zip(
             self._context.nodes.values(),
             itertools.repeat(self._context.zone.zones)
         ))
@@ -145,3 +153,36 @@ def _recreate_network():
     bash.check_output(dockercmd.create_network())
     logging.info('Docker network {} created'.format(config.network_name))
     utils.sleep(1)
+
+"""
+#AppendixA
+
+```
+18-06-05 12:52:45.287000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.290000 [MainProcess-Thread-3    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 1.00000000
+2018-06-05 12:52:45.293000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.293000 [MainProcess-Thread-3    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = -499.00000000
+2018-06-05 12:52:45.294000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.302000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.303000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.308000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.308000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.314000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.314000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.320000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.320000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.326000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.327000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.343000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 596.00000000
+2018-06-05 12:52:45.344000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 96.00000000
+2018-06-05 12:52:45.349000 [MainProcess-Thread-5    ] [INFO ]  Transferred all coinbase-tx to normal tx for node=node-2.5
+2018-06-05 12:52:45.472000 [MainProcess-Thread-1    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 0E-8
+2018-06-05 12:52:45.472000 [MainProcess-Thread-1    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = -500.00000000
+2018-06-05 12:52:45.503000 [MainProcess-Thread-4    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 0E-8
+2018-06-05 12:52:45.503000 [MainProcess-Thread-4    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = -500.00000000
+2018-06-05 12:52:45.509000 [MainProcess-Thread-2    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 0E-8
+2018-06-05 12:52:45.509000 [MainProcess-Thread-2    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = -500.00000000
+2018-06-05 12:52:45.638000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = 298.00000000
+2018-06-05 12:52:45.638000 [MainProcess-Thread-5    ] [INFO ]  transfer_coinbase_to_normal_tx tx_chain.amount = -202.00000000
+```
+"""
