@@ -39,6 +39,9 @@ Sys.setenv(TZ='UTC')
 ```
 
 ```{r setup, include=FALSE}
+
+# setwd("../../data/last_run/postprocessing/")
+
 blocks_create         <- read.csv("blocks_create.csv", dec=".")
 blocks_stats          <- read.csv("blocks_stats.csv", dec=".")
 blocks_reconstructed  <- read.csv("blocks_reconstructed.csv", dec=".")
@@ -72,6 +75,8 @@ ticks          <- readLines(file('ticks.csv'))
 analysed_ticks <- readLines(file('analysed_ticks.csv'))
 
 nodes <- read.csv('nodes.csv', dec='.')
+
+# closeAllConnections()
 ```
 
 ## Simulation
