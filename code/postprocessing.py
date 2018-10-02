@@ -9,10 +9,11 @@ import utils
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 import subprocess
-from runner import StepTimes
+from step_times import StepTimes
 import time
 import csv
 import node as node_utils
+import info
 
 
 class PostProcessing:
@@ -24,10 +25,10 @@ class PostProcessing:
 
     def execute(self):
         self._pool = Pool(config.pool_processors)
-        self._thread_pool = ThreadPool(5)
+        self._thread_pool = ThreadPool(1)
 
         cli_stats = CliStats(self._context, self._writer)
-        cli_stats.execute()
+        cli_stats.execute()  # also calc forks here
 
         self.clean_up_docker()
 
@@ -42,8 +43,10 @@ class PostProcessing:
 
         _collect_general_information()
 
-        self._context.step_times.append(StepTimes(time.time(), 'postprocessing_end'))
-        self._writer.write_csv(config.step_times_csv_file_name, StepTimes.csv_header, self._context.step_times)
+        StepTimes().add('postprocessing_end')
+        #### self._context.step_times.append(StepTimes().add('postprocessing_end'add('postprocessing_end'))
+        # TODO write deffered steptimes
+        # self._writer.write_csv(config.step_times_csv_file_name, StepTimes.csv_header, self._context.step_times)
 
         _create_report()
 
@@ -52,7 +55,8 @@ class PostProcessing:
         logging.info('Executed post processing')
 
     def clean_up_docker(self):
-        node_utils.graceful_rm(self._thread_pool, self._context.nodes.values())
+        with Pool(1) as pool:
+            node_utils.graceful_rm(pool, self._context.nodes.values())
         logging.info('Removed all nodes')
 
         utils.sleep(1)
@@ -63,6 +67,17 @@ class PostProcessing:
         bash.check_output(dockercmd.fix_data_dirs_permissions(self._context.run_dir))
         logging.info('Fixed permissions of dirs used by docker')
 
+    
+    def clean_up_docker_safe(self):
+        try:
+            with Pool(1) as pool:
+                node_utils.graceful_rm(pool, self._context.nodes.values())
+            utils.sleep(1)
+            bash.check_output(dockercmd.rm_network())
+            bash.check_output(dockercmd.fix_data_dirs_permissions(self._context.run_dir))
+        except Exception:
+            logging.debug("clean_up_docker_safe failed")
+            pass
 
 def _flush_log_handlers():
     for handler in logging.getLogger().handlers:
@@ -109,6 +124,12 @@ def _try_cmd(cmd):
 
 
 def _create_report():
-    bash.check_output(rcmd.preprocess(config.postprocessing_dir))
-    bash.check_output(rcmd.create_report(config.postprocessing_dir))
-    logging.info('Created report in folder={}'.format(config.postprocessing_dir))
+    out = ""
+    try:
+        out += bash.check_output(rcmd.preprocess(config.postprocessing_dir))
+        out += bash.check_output(rcmd.create_report(config.postprocessing_dir))
+        logging.info('Created report in folder={}'.format(config.postprocessing_dir))
+    except Exception as e:
+        print("LLLAAA")
+        print(out)
+        print(e)
