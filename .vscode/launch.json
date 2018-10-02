@@ -1,17 +1,45 @@
 {
-    "version": "0.2.0",
+    "name": "Python: Simcoin File",
+    "type": "python",
+    "request": "launch",
+    "stopOnEntry": true,
+    "pythonPath":"${config.python.pythonPath}",
+    "program": "${workspaceFolder}/code/simcoin.py",
+    "args": ["simulate", "--tick-duration=0.5"],
+    "cwd": "${workspaceFolder}/code",
+    "console":"externalTerminal",
+    "debugOptions": [
+        "RedirectOutput"
+    ],
     "configurations": [
         {
-            "name": "Python Console App",
+            "name": "Python: Terminal (integrated)",
+            "type": "python",
+            "request": "launch",
+            "comment_1": "program: ${file}",
+            "program": "${workspaceFolder}/code/simcoin.py",   
+            "cwd": "${workspaceFolder}/code",
+            "args": ["simulate", "--tick-duration=0.5"],
+            "console": "integratedTerminal"
+        },{
+            "name": "Nose",
             "type": "python",
             "request": "launch",
             "stopOnEntry": false,
-            "program": "${workspaceRoot}/setup.py",
-            "externalConsole": true,
+            "pythonPath": "/usr/bin/python3.6",
+            "program": "${workspaceFolder}/code/run_nose.py",
+            "cwd": "${workspaceFolder}/code",
             "debugOptions": [
                 "WaitOnAbnormalExit",
                 "WaitOnNormalExit",
                 "RedirectOutput"
+            ],
+            "args": [
+                //"${file}",  // currently selected file
+                "-v",       // additional nose parameters –
+                "--nocapture",
+                "-w",
+                "tests"
             ]
         }
     ]
