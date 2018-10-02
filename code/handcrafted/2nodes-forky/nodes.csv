@@ -1,0 +1,3 @@
+group,name,share,latency,docker_image
+group_a,node-1.1,0.5,120,simcoin/bitcoin:v15.0.1
+group_b,node-2.1,0.5,120,simcoin/bitcoin:v15.0.1
