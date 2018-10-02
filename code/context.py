@@ -13,6 +13,7 @@ class Context:
         self._run_dir = config.data_dir + self._run_name + '/'
         self._args = utils.read_args()
         self._zone = Zone()
+        self.tag = ""
 
         self._first_block_height = None
         self._step_times = []
@@ -37,7 +38,6 @@ class Context:
                 [self.nodes[connection].ip for connection in connections[node.name]]
             )
 
-
     @property
     def run_name(self):
         return self._run_name
@@ -57,6 +57,9 @@ class Context:
     @property
     def nodes(self):
         return self._nodes
+
+    def get_node(self, index: str) -> PublicBitcoinNode:
+        return self._nodes[index]
 
     @property
     def first_block_height(self):
